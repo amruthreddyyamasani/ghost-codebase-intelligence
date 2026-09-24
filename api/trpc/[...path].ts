@@ -1,24 +1,39 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import express from "express";
-import { createExpressMiddleware } from "@trpc/server/adapters/express";
+import {
+  nodeHTTPRequestHandler,
+  type NodeHTTPRequest,
+  type NodeHTTPResponse,
+} from "@trpc/server/adapters/node-http";
 import { appRouter } from "../../server/routers";
 import { createContext } from "../../server/_core/context";
 
-const app = express();
+function getProcedurePath(req: VercelRequest): string {
+  const queryPath = req.query?.path;
+  if (Array.isArray(queryPath) && queryPath.length > 0) {
+    return queryPath.join("/");
+  }
+  if (typeof queryPath === "string" && queryPath.length > 0) {
+    return queryPath;
+  }
 
-app.use(express.json({ limit: "50mb" }));
-app.use(express.urlencoded({ limit: "50mb", extended: true }));
+  const pathname = (req.url ?? "").split("?", 1)[0] ?? "";
+  const marker = "/api/trpc/";
+  const markerIndex = pathname.indexOf(marker);
+  return markerIndex >= 0 ? pathname.slice(markerIndex + marker.length) : "";
+}
 
-const trpcMiddleware = createExpressMiddleware({
-  router: appRouter,
-  createContext,
-});
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const path = getProcedurePath(req);
 
-// Vercel may invoke a filesystem function with either the matched URL intact
-// or the path stripped. Supporting both keeps the handler portable.
-app.use("/api/trpc", trpcMiddleware);
-app.use(trpcMiddleware);
-
-export default function handler(req: VercelRequest, res: VercelResponse) {
-  return app(req, res);
+  await nodeHTTPRequestHandler({
+    router: appRouter,
+    req: req as unknown as NodeHTTPRequest,
+    res: res as unknown as NodeHTTPResponse,
+    path,
+    createContext: ({ req: contextReq, res: contextRes }) =>
+      createContext({
+        req: contextReq as never,
+        res: contextRes as never,
+      }),
+  });
 }
