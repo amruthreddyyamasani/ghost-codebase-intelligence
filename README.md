@@ -67,9 +67,9 @@ Run behind a reverse proxy or platform that supports a long-running Node process
 
 ### Vercel
 
-An empty Vercel project shell has been created for this repository. Its GitHub link still requires the GitHub integration to be authorized for the private repository. Once connected, Vercel's Git integration can rebuild on pushes to `main`. Set the server-side environment variables in the Vercel project before using the assistant.
+`vercel.json` tells Vercel to run `pnpm build:vercel`, publish only `dist/vercel`, and treat `api/**/*.ts` as Node 22 serverless functions. The frontend calls the existing tRPC router through `/api/trpc`; the OAuth callback is preserved at `/api/oauth/callback`. Set the server-side environment variables in the Vercel project before using the assistant.
 
-**Limitation:** this MVP is an Express process with tRPC routes and is not yet split into Vercel-native `/api` serverless functions. Vercel may build the client preview, but server-side tRPC, GitHub fetching, and AI calls require a Node/container runtime unless the backend is migrated to Vercel Functions in a follow-up change. The included `pnpm build` and `pnpm start` commands remain the source of truth for full-stack deployment.
+The Vercel functions use the same `appRouter`, analyzer, database helpers, OAuth implementation, and server-side Forge client as the Node runtime. Vercel functions are request-scoped, so long-running workers and in-memory persistence are not used by the MVP. The included `pnpm build` and `pnpm start` commands remain the source of truth for full-stack container deployment.
 
 ## Repository analysis boundaries
 
@@ -89,6 +89,8 @@ The analyzer regression suite covers relative import resolution, circular depend
 
 ```text
 client/src/                 React workbench and Three.js graph
+api/trpc/[...path].ts       Vercel serverless tRPC adapter
+api/oauth/callback.ts       Vercel serverless OAuth callback adapter
 server/analysis/analyzer.ts Deterministic GitHub scanner and graph builder
 server/routers.ts           tRPC procedures for analysis and assistant
 shared/ghost.ts             Shared analysis contracts
