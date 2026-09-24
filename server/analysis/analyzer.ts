@@ -5,6 +5,20 @@ import type {
   FileKind,
   RepositoryAnalysis,
 } from "../../shared/ghost";
+import { ENV } from "../_core/env";
+
+export type RepositoryAnalysisErrorCode = "INVALID_URL" | "NOT_FOUND" | "RATE_LIMIT" | "GITHUB_ERROR";
+
+export class RepositoryAnalysisError extends Error {
+  constructor(
+    public readonly code: RepositoryAnalysisErrorCode,
+    message: string,
+    public readonly status: number,
+  ) {
+    super(message);
+    this.name = "RepositoryAnalysisError";
+  }
+}
 
 type GitHubRepo = {
   name: string;
@@ -33,16 +47,16 @@ function parseRepoUrl(value: string) {
   try {
     url = new URL(value.trim());
   } catch {
-    throw new Error("Enter a valid GitHub repository URL.");
+    throw new RepositoryAnalysisError("INVALID_URL", "Enter a valid GitHub repository URL.", 400);
   }
 
   if (url.hostname !== "github.com") {
-    throw new Error("GHOST currently supports github.com repository URLs only.");
+    throw new RepositoryAnalysisError("INVALID_URL", "GHOST currently supports github.com repository URLs only.", 400);
   }
 
   const parts = url.pathname.split("/").filter(Boolean);
   if (parts.length < 2) {
-    throw new Error("That GitHub URL does not include an owner and repository name.");
+    throw new RepositoryAnalysisError("INVALID_URL", "That GitHub URL does not include an owner and repository name.", 400);
   }
 
   return { owner: parts[0], name: parts[1].replace(/\.git$/, "") };
@@ -53,13 +67,18 @@ async function githubJson<T>(path: string): Promise<T> {
     headers: {
       Accept: "application/vnd.github+json",
       "User-Agent": "GHOST-Codebase-Intelligence",
+      ...(ENV.githubToken ? { Authorization: `Bearer ${ENV.githubToken}` } : {}),
     },
   });
 
   if (!response.ok) {
-    if (response.status === 404) throw new Error("Repository not found or not publicly accessible.");
-    if (response.status === 403) throw new Error("GitHub rate limit reached. Try again in a moment.");
-    throw new Error(`GitHub returned ${response.status}.`);
+    if (response.status === 404) {
+      throw new RepositoryAnalysisError("NOT_FOUND", "Repository not found or not publicly accessible.", 404);
+    }
+    if (response.status === 403 || response.status === 429 || response.headers.get("x-ratelimit-remaining") === "0") {
+      throw new RepositoryAnalysisError("RATE_LIMIT", "GitHub rate limit reached. Try again in a moment.", 429);
+    }
+    throw new RepositoryAnalysisError("GITHUB_ERROR", `GitHub returned ${response.status}.`, 502);
   }
 
   return response.json() as Promise<T>;
@@ -67,7 +86,11 @@ async function githubJson<T>(path: string): Promise<T> {
 
 async function fetchText(url: string) {
   const response = await fetch(url, {
-    headers: { Accept: "application/vnd.github.raw+json", "User-Agent": "GHOST-Codebase-Intelligence" },
+    headers: {
+      Accept: "application/vnd.github.raw+json",
+      "User-Agent": "GHOST-Codebase-Intelligence",
+      ...(ENV.githubToken ? { Authorization: `Bearer ${ENV.githubToken}` } : {}),
+    },
   });
   if (!response.ok) throw new Error(`Unable to read ${url}`);
   return response.text();

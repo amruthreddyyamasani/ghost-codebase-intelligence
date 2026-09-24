@@ -1,10 +1,11 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { invokeLLM } from "./_core/llm";
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
-import { analyzeRepository } from "./analysis/analyzer";
+import { analyzeRepository, RepositoryAnalysisError } from "./analysis/analyzer";
 
 const assistantInput = z.object({
   repository: z.string().min(1).max(240),
@@ -32,7 +33,23 @@ export const appRouter = router({
   ghost: router({
     analyze: publicProcedure
       .input(z.object({ url: z.string().url().max(400) }))
-      .mutation(async ({ input }) => analyzeRepository(input.url)),
+      .mutation(async ({ input }) => {
+        try {
+          return await analyzeRepository(input.url);
+        } catch (error) {
+          if (error instanceof RepositoryAnalysisError) {
+            const code = error.code === "INVALID_URL"
+              ? "BAD_REQUEST"
+              : error.code === "NOT_FOUND"
+                ? "NOT_FOUND"
+                : error.code === "RATE_LIMIT"
+                  ? "TOO_MANY_REQUESTS"
+                  : "INTERNAL_SERVER_ERROR";
+            throw new TRPCError({ code, message: error.message, cause: error });
+          }
+          throw error;
+        }
+      }),
     ask: publicProcedure.input(assistantInput).mutation(async ({ input }) => {
       const selected = input.selectedFile ? `The user is inspecting ${input.selectedFile}.` : "No file is currently selected.";
       const source = input.selectedSource

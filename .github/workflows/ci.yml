@@ -1,0 +1,41 @@
+name: GHOST CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.4.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - run: pnpm test
+      - run: pnpm build
+      - run: pnpm build:vercel
+
+  production-smoke:
+    if: ${{ vars.GHOST_SMOKE_URL != '' }}
+    needs: quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Smoke test production API
+        env:
+          GHOST_SMOKE_URL: ${{ vars.GHOST_SMOKE_URL }}
+          GHOST_SMOKE_REPOSITORY: ${{ vars.GHOST_SMOKE_REPOSITORY }}
+          GHOST_SMOKE_NONEXISTENT_REPOSITORY: ${{ vars.GHOST_SMOKE_NONEXISTENT_REPOSITORY }}
+        run: node scripts/smoke-production.mjs

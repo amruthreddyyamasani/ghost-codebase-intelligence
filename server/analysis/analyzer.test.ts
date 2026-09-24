@@ -1,12 +1,46 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { analyzeRepository } from "./analyzer";
+import { ENV } from "../_core/env";
 
 describe("GHOST repository analyzer", () => {
   const originalFetch = globalThis.fetch;
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
+    ENV.githubToken = "";
     vi.restoreAllMocks();
+  });
+
+  it("uses the optional server-side GitHub token and preserves it out of results", async () => {
+    ENV.githubToken = "test-token-only";
+    let repoHeaders: HeadersInit | undefined;
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "https://api.github.com/repos/acme/tokenized") {
+        repoHeaders = init?.headers;
+        return new Response(JSON.stringify({ name: "tokenized", full_name: "acme/tokenized", html_url: "https://github.com/acme/tokenized", default_branch: "main", description: null, stargazers_count: 0, pushed_at: null }), { status: 200 });
+      }
+      if (url.includes("/git/trees/main")) return new Response(JSON.stringify({ tree: [] }), { status: 200 });
+      return new Response("", { status: 200 });
+    }) as typeof fetch;
+
+    const result = await analyzeRepository("https://github.com/acme/tokenized");
+
+    expect(new Headers(repoHeaders).get("authorization")).toBe("Bearer test-token-only");
+    expect(JSON.stringify(result)).not.toContain("test-token-only");
+  });
+
+  it("distinguishes invalid URLs, missing repositories, and rate limits", async () => {
+    await expect(analyzeRepository("https://example.com/not-github")).rejects.toMatchObject({ code: "INVALID_URL", status: 400 });
+
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/missing")) return new Response("", { status: 404 });
+      return new Response("", { status: 403, headers: { "x-ratelimit-remaining": "0" } });
+    }) as typeof fetch;
+
+    await expect(analyzeRepository("https://github.com/acme/missing")).rejects.toMatchObject({ code: "NOT_FOUND", status: 404 });
+    await expect(analyzeRepository("https://github.com/acme/rate-limited")).rejects.toMatchObject({ code: "RATE_LIMIT", status: 429 });
   });
 
   it("resolves relative imports and reports circular dependencies", async () => {

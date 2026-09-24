@@ -41,6 +41,7 @@ Never commit a real `.env` file. Set the variables in your shell, secret manager
 
 | Variable | Required for | Description |
 |---|---|---|
+| `GITHUB_TOKEN` | Optional GitHub API quota | Server-side GitHub token used only for GitHub API requests. Never expose it through `VITE_`, responses, logs, or analysis context. |
 | `GROQ_API_KEY` | AI assistant | Server-side Groq API key for `llama-3.3-70b-versatile`. Keep secret. |
 | `BUILT_IN_FORGE_API_URL` | Optional scaffold services | Legacy Manus storage/media integrations only; not used by the GHOST assistant. |
 | `BUILT_IN_FORGE_API_KEY` | Optional scaffold services | Legacy Manus storage/media credential only; not used by the GHOST assistant. |
@@ -70,7 +71,7 @@ Run behind a reverse proxy or platform that supports a long-running Node process
 
 `vercel.json` tells Vercel to run `pnpm build:vercel`, publish only `dist/vercel`, and use Vercel's built-in Node runtime for the generated `api/**/*.js` serverless functions. The build bundles GHOST's local server modules into those function entries so Vercel does not need to resolve the TypeScript source tree at runtime. The frontend calls the existing tRPC router through `/api/trpc`; the OAuth callback is preserved at `/api/oauth/callback`. Add `GROQ_API_KEY` to the Vercel project before using the assistant.
 
-The Vercel functions use the same `appRouter`, analyzer, database helpers, OAuth implementation, and server-side Groq client as the Node runtime. Vercel functions are request-scoped, so long-running workers and in-memory persistence are not used by the MVP. The included `pnpm build` and `pnpm start` commands remain the source of truth for full-stack container deployment.
+The Vercel functions use the same `appRouter`, analyzer, database helpers, OAuth implementation, and server-side Groq client as the Node runtime. Vercel functions are request-scoped, so long-running workers and in-memory persistence are not used by the MVP. Set `GITHUB_TOKEN` as a server-side Vercel environment variable to raise GitHub API limits; the application preserves its public unauthenticated behavior when it is absent. The included `pnpm build` and `pnpm start` commands remain the source of truth for full-stack container deployment.
 
 ## Repository analysis boundaries
 
@@ -84,7 +85,7 @@ pnpm test
 pnpm build
 ```
 
-The analyzer regression suite covers relative import resolution, circular dependency detection, and protection against counting optional property syntax as control-flow complexity.
+The analyzer regression suite covers relative import resolution, circular dependency detection, optional-property complexity protection, server-side GitHub authorization, and distinct invalid URL, not-found, and rate-limit errors. GitHub Actions runs these checks plus the Vercel bundle build. To enable the optional live smoke job, set repository variables `GHOST_SMOKE_URL`, `GHOST_SMOKE_REPOSITORY`, and `GHOST_SMOKE_NONEXISTENT_REPOSITORY`; a GitHub rate-limit response is reported as not verified rather than being treated as a 404.
 
 ## Project structure
 
