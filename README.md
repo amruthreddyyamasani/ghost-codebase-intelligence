@@ -28,7 +28,6 @@ Requirements: Node.js 22+, pnpm 10+, and network access to GitHub's public API.
 git clone https://github.com/amruthreddyyamasani/ghost-codebase-intelligence.git
 cd ghost-codebase-intelligence
 pnpm install
-cp .env.example .env
 pnpm check
 pnpm test
 pnpm dev
@@ -38,7 +37,7 @@ The app runs at `http://localhost:3000`. Repository analysis works without a dat
 
 ## Environment variables
 
-Never commit a real `.env` file. Use `.env.example` as the non-secret template.
+Never commit a real `.env` file. Set the variables in your shell, secret manager, or deployment platform.
 
 | Variable | Required for | Description |
 |---|---|---|
@@ -68,7 +67,7 @@ Run behind a reverse proxy or platform that supports a long-running Node process
 
 ### Vercel
 
-The repository is linked to a Vercel project for preview deployment. Vercel's Git integration will rebuild on pushes to `main` once the project is connected. Set the server-side environment variables in the Vercel project before using the assistant.
+An empty Vercel project shell has been created for this repository. Its GitHub link still requires the GitHub integration to be authorized for the private repository. Once connected, Vercel's Git integration can rebuild on pushes to `main`. Set the server-side environment variables in the Vercel project before using the assistant.
 
 **Limitation:** this MVP is an Express process with tRPC routes and is not yet split into Vercel-native `/api` serverless functions. Vercel may build the client preview, but server-side tRPC, GitHub fetching, and AI calls require a Node/container runtime unless the backend is migrated to Vercel Functions in a follow-up change. The included `pnpm build` and `pnpm start` commands remain the source of truth for full-stack deployment.
 
