@@ -68,7 +68,7 @@ Run behind a reverse proxy or platform that supports a long-running Node process
 
 ### Vercel
 
-`vercel.json` tells Vercel to run `pnpm build:vercel`, publish only `dist/vercel`, and use Vercel's built-in Node runtime for `api/**/*.ts` serverless functions. The frontend calls the existing tRPC router through `/api/trpc`; the OAuth callback is preserved at `/api/oauth/callback`. Add `GROQ_API_KEY` to the Vercel project before using the assistant.
+`vercel.json` tells Vercel to run `pnpm build:vercel`, publish only `dist/vercel`, and use Vercel's built-in Node runtime for the generated `api/**/*.js` serverless functions. The build bundles GHOST's local server modules into those function entries so Vercel does not need to resolve the TypeScript source tree at runtime. The frontend calls the existing tRPC router through `/api/trpc`; the OAuth callback is preserved at `/api/oauth/callback`. Add `GROQ_API_KEY` to the Vercel project before using the assistant.
 
 The Vercel functions use the same `appRouter`, analyzer, database helpers, OAuth implementation, and server-side Groq client as the Node runtime. Vercel functions are request-scoped, so long-running workers and in-memory persistence are not used by the MVP. The included `pnpm build` and `pnpm start` commands remain the source of truth for full-stack container deployment.
 
@@ -90,8 +90,9 @@ The analyzer regression suite covers relative import resolution, circular depend
 
 ```text
 client/src/                 React workbench and Three.js graph
-api/trpc/[...path].ts       Vercel serverless tRPC adapter
-api/oauth/callback.ts       Vercel serverless OAuth callback adapter
+server/vercel/trpc.ts       Source for the bundled Vercel tRPC adapter
+server/vercel/oauth.ts      Source for the bundled Vercel OAuth adapter
+package.json build:vercel  Bundles local server code into api/
 server/analysis/analyzer.ts Deterministic GitHub scanner and graph builder
 server/routers.ts           tRPC procedures for analysis and assistant
 shared/ghost.ts             Shared analysis contracts

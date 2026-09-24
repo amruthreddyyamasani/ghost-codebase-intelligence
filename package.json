@@ -11,7 +11,7 @@
     "build": "pnpm build:client && pnpm build:server",
     "build:client": "vite build",
     "build:server": "esbuild server/_core/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
-    "build:vercel": "VERCEL=1 vite build",
+    "build:vercel": "VERCEL=1 vite build && mkdir -p api/trpc && ./node_modules/.bin/esbuild server/vercel/trpc.ts --platform=node --packages=external --bundle --format=esm --target=node22 --outfile='api/trpc/[...path].js'",
     "start": "NODE_ENV=production node dist/index.js",
     "check": "tsc --noEmit",
     "format": "prettier --write .",
