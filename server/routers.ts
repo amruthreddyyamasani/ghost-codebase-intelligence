@@ -41,6 +41,7 @@ export const appRouter = router({
 
       try {
         const response = await invokeLLM({
+          model: "llama-3.3-70b-versatile",
           messages: [
             {
               role: "system",

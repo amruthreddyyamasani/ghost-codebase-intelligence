@@ -33,7 +33,7 @@ pnpm test
 pnpm dev
 ```
 
-The app runs at `http://localhost:3000`. Repository analysis works without a database or authentication configuration. The AI assistant requires the built-in Forge variables described below.
+The app runs at `http://localhost:3000`. Repository analysis works without a database or authentication configuration. The AI assistant requires a Groq API key configured on the server.
 
 ## Environment variables
 
@@ -41,15 +41,16 @@ Never commit a real `.env` file. Set the variables in your shell, secret manager
 
 | Variable | Required for | Description |
 |---|---|---|
-| `BUILT_IN_FORGE_API_URL` | AI assistant | OpenAI-compatible Forge API base URL. |
-| `BUILT_IN_FORGE_API_KEY` | AI assistant | Server-side Forge API bearer token. Keep secret. |
+| `GROQ_API_KEY` | AI assistant | Server-side Groq API key for `llama-3.3-70b-versatile`. Keep secret. |
+| `BUILT_IN_FORGE_API_URL` | Optional scaffold services | Legacy Manus storage/media integrations only; not used by the GHOST assistant. |
+| `BUILT_IN_FORGE_API_KEY` | Optional scaffold services | Legacy Manus storage/media credential only; not used by the GHOST assistant. |
 | `DATABASE_URL` | Persistent auth/data | MySQL/TiDB connection string. Optional for the current stateless MVP scan flow. |
 | `JWT_SECRET` | Manus OAuth sessions | Session signing secret. |
 | `VITE_APP_ID` | Manus OAuth | OAuth application ID. |
 | `OAUTH_SERVER_URL` | Manus OAuth | OAuth server base URL. |
 | `OWNER_OPEN_ID` | Owner role mapping | Optional owner identifier used by the scaffold auth flow. |
 
-For a standalone deployment without Manus OAuth, leave the OAuth/database variables unset and use the public analysis surface. Configure the AI variables only on the server; do not expose the API key to the browser.
+For a standalone deployment without Manus OAuth, leave the OAuth/database variables unset and use the public analysis surface. Configure `GROQ_API_KEY` only on the server; do not prefix it with `VITE_` or expose it to the browser.
 
 ## Deployment
 
@@ -67,9 +68,9 @@ Run behind a reverse proxy or platform that supports a long-running Node process
 
 ### Vercel
 
-`vercel.json` tells Vercel to run `pnpm build:vercel`, publish only `dist/vercel`, and treat `api/**/*.ts` as Node 22 serverless functions. The frontend calls the existing tRPC router through `/api/trpc`; the OAuth callback is preserved at `/api/oauth/callback`. Set the server-side environment variables in the Vercel project before using the assistant.
+`vercel.json` tells Vercel to run `pnpm build:vercel`, publish only `dist/vercel`, and use Vercel's built-in Node runtime for `api/**/*.ts` serverless functions. The frontend calls the existing tRPC router through `/api/trpc`; the OAuth callback is preserved at `/api/oauth/callback`. Add `GROQ_API_KEY` to the Vercel project before using the assistant.
 
-The Vercel functions use the same `appRouter`, analyzer, database helpers, OAuth implementation, and server-side Forge client as the Node runtime. Vercel functions are request-scoped, so long-running workers and in-memory persistence are not used by the MVP. The included `pnpm build` and `pnpm start` commands remain the source of truth for full-stack container deployment.
+The Vercel functions use the same `appRouter`, analyzer, database helpers, OAuth implementation, and server-side Groq client as the Node runtime. Vercel functions are request-scoped, so long-running workers and in-memory persistence are not used by the MVP. The included `pnpm build` and `pnpm start` commands remain the source of truth for full-stack container deployment.
 
 ## Repository analysis boundaries
 
