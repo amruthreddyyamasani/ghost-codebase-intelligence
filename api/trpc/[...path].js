@@ -5,6 +5,7 @@ import {
 
 // server/routers.ts
 import { z as z2 } from "zod";
+import { TRPCError as TRPCError3 } from "@trpc/server";
 
 // server/_core/env.ts
 var ENV = {
@@ -14,6 +15,7 @@ var ENV = {
   oAuthServerUrl: process.env.OAUTH_SERVER_URL ?? "",
   ownerOpenId: process.env.OWNER_OPEN_ID ?? "",
   isProduction: process.env.NODE_ENV === "production",
+  githubToken: process.env.GITHUB_TOKEN ?? "",
   groqApiKey: process.env.GROQ_API_KEY ?? "",
   forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? "",
   forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? ""
@@ -422,6 +424,14 @@ var systemRouter = router({
 });
 
 // server/analysis/analyzer.ts
+var RepositoryAnalysisError = class extends Error {
+  constructor(code, message, status) {
+    super(message);
+    this.code = code;
+    this.status = status;
+    this.name = "RepositoryAnalysisError";
+  }
+};
 var CODE_EXTENSIONS = /\.(tsx?|jsx?|mjs|cjs)$/i;
 var IGNORED_DIRS = /(^|\/)(node_modules|dist|build|coverage|\.git|\.next|vendor|out)(\/|$)/;
 var MAX_FILES = 180;
@@ -431,14 +441,14 @@ function parseRepoUrl(value) {
   try {
     url = new URL(value.trim());
   } catch {
-    throw new Error("Enter a valid GitHub repository URL.");
+    throw new RepositoryAnalysisError("INVALID_URL", "Enter a valid GitHub repository URL.", 400);
   }
   if (url.hostname !== "github.com") {
-    throw new Error("GHOST currently supports github.com repository URLs only.");
+    throw new RepositoryAnalysisError("INVALID_URL", "GHOST currently supports github.com repository URLs only.", 400);
   }
   const parts = url.pathname.split("/").filter(Boolean);
   if (parts.length < 2) {
-    throw new Error("That GitHub URL does not include an owner and repository name.");
+    throw new RepositoryAnalysisError("INVALID_URL", "That GitHub URL does not include an owner and repository name.", 400);
   }
   return { owner: parts[0], name: parts[1].replace(/\.git$/, "") };
 }
@@ -446,19 +456,28 @@ async function githubJson(path) {
   const response = await fetch(`https://api.github.com${path}`, {
     headers: {
       Accept: "application/vnd.github+json",
-      "User-Agent": "GHOST-Codebase-Intelligence"
+      "User-Agent": "GHOST-Codebase-Intelligence",
+      ...ENV.githubToken ? { Authorization: `Bearer ${ENV.githubToken}` } : {}
     }
   });
   if (!response.ok) {
-    if (response.status === 404) throw new Error("Repository not found or not publicly accessible.");
-    if (response.status === 403) throw new Error("GitHub rate limit reached. Try again in a moment.");
-    throw new Error(`GitHub returned ${response.status}.`);
+    if (response.status === 404) {
+      throw new RepositoryAnalysisError("NOT_FOUND", "Repository not found or not publicly accessible.", 404);
+    }
+    if (response.status === 403 || response.status === 429 || response.headers.get("x-ratelimit-remaining") === "0") {
+      throw new RepositoryAnalysisError("RATE_LIMIT", "GitHub rate limit reached. Try again in a moment.", 429);
+    }
+    throw new RepositoryAnalysisError("GITHUB_ERROR", `GitHub returned ${response.status}.`, 502);
   }
   return response.json();
 }
 async function fetchText(url) {
   const response = await fetch(url, {
-    headers: { Accept: "application/vnd.github.raw+json", "User-Agent": "GHOST-Codebase-Intelligence" }
+    headers: {
+      Accept: "application/vnd.github.raw+json",
+      "User-Agent": "GHOST-Codebase-Intelligence",
+      ...ENV.githubToken ? { Authorization: `Bearer ${ENV.githubToken}` } : {}
+    }
   });
   if (!response.ok) throw new Error(`Unable to read ${url}`);
   return response.text();
@@ -685,7 +704,17 @@ var appRouter = router({
     })
   }),
   ghost: router({
-    analyze: publicProcedure.input(z2.object({ url: z2.string().url().max(400) })).mutation(async ({ input }) => analyzeRepository(input.url)),
+    analyze: publicProcedure.input(z2.object({ url: z2.string().url().max(400) })).mutation(async ({ input }) => {
+      try {
+        return await analyzeRepository(input.url);
+      } catch (error) {
+        if (error instanceof RepositoryAnalysisError) {
+          const code = error.code === "INVALID_URL" ? "BAD_REQUEST" : error.code === "NOT_FOUND" ? "NOT_FOUND" : error.code === "RATE_LIMIT" ? "TOO_MANY_REQUESTS" : "INTERNAL_SERVER_ERROR";
+          throw new TRPCError3({ code, message: error.message, cause: error });
+        }
+        throw error;
+      }
+    }),
     ask: publicProcedure.input(assistantInput).mutation(async ({ input }) => {
       const selected = input.selectedFile ? `The user is inspecting ${input.selectedFile}.` : "No file is currently selected.";
       const source = input.selectedSource ? `
