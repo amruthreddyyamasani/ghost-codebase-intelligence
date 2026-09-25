@@ -368,70 +368,26 @@ async function notifyOwner(payload) {
 // server/_core/trpc.ts
 import { initTRPC, TRPCError as TRPCError2 } from "@trpc/server";
 import superjson from "superjson";
-var t = initTRPC.context().create({
-  transformer: superjson
-});
-var router = t.router;
-var publicProcedure = t.procedure;
-var requireUser = t.middleware(async (opts) => {
-  const { ctx, next } = opts;
-  if (!ctx.user) {
-    throw new TRPCError2({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
-  }
-  return next({
-    ctx: {
-      ...ctx,
-      user: ctx.user
-    }
-  });
-});
-var protectedProcedure = t.procedure.use(requireUser);
-var adminProcedure = t.procedure.use(
-  t.middleware(async (opts) => {
-    const { ctx, next } = opts;
-    if (!ctx.user || ctx.user.role !== "admin") {
-      throw new TRPCError2({ code: "FORBIDDEN", message: NOT_ADMIN_ERR_MSG });
-    }
-    return next({
-      ctx: {
-        ...ctx,
-        user: ctx.user
-      }
-    });
-  })
-);
-
-// server/_core/systemRouter.ts
-var systemRouter = router({
-  health: publicProcedure.input(
-    z.object({
-      timestamp: z.number().min(0, "timestamp cannot be negative")
-    })
-  ).query(() => ({
-    ok: true
-  })),
-  notifyOwner: adminProcedure.input(
-    z.object({
-      title: z.string().min(1, "title is required"),
-      content: z.string().min(1, "content is required")
-    })
-  ).mutation(async ({ input }) => {
-    const delivered = await notifyOwner(input);
-    return {
-      success: delivered
-    };
-  })
-});
 
 // server/analysis/analyzer.ts
 var RepositoryAnalysisError = class extends Error {
-  constructor(code, message, status) {
+  constructor(code, message, status, retryAt, retryAfterSeconds) {
     super(message);
     this.code = code;
     this.status = status;
+    this.retryAt = retryAt;
+    this.retryAfterSeconds = retryAfterSeconds;
     this.name = "RepositoryAnalysisError";
   }
 };
+function rateLimitMetadata(response) {
+  const resetSeconds = Number(response.headers.get("x-ratelimit-reset"));
+  const retryAfterValue = response.headers.get("retry-after");
+  const retryAfterHeader = retryAfterValue === null ? void 0 : Number(retryAfterValue);
+  const retryAt = Number.isFinite(resetSeconds) && resetSeconds > 0 ? resetSeconds * 1e3 : void 0;
+  const retryAfterSeconds = typeof retryAfterHeader === "number" && Number.isFinite(retryAfterHeader) && retryAfterHeader >= 0 ? Math.ceil(retryAfterHeader) : retryAt ? Math.max(0, Math.ceil((retryAt - Date.now()) / 1e3)) : void 0;
+  return { retryAt, retryAfterSeconds };
+}
 var CODE_EXTENSIONS = /\.(tsx?|jsx?|mjs|cjs)$/i;
 var IGNORED_DIRS = /(^|\/)(node_modules|dist|build|coverage|\.git|\.next|vendor|out)(\/|$)/;
 var MAX_FILES = 180;
@@ -465,7 +421,8 @@ async function githubJson(path) {
       throw new RepositoryAnalysisError("NOT_FOUND", "Repository not found or not publicly accessible.", 404);
     }
     if (response.status === 403 || response.status === 429 || response.headers.get("x-ratelimit-remaining") === "0") {
-      throw new RepositoryAnalysisError("RATE_LIMIT", "GitHub rate limit reached. Try again in a moment.", 429);
+      const metadata = rateLimitMetadata(response);
+      throw new RepositoryAnalysisError("RATE_LIMIT", "GitHub rate limit reached. Try again later.", 429, metadata.retryAt, metadata.retryAfterSeconds);
     }
     throw new RepositoryAnalysisError("GITHUB_ERROR", `GitHub returned ${response.status}.`, 502);
   }
@@ -680,6 +637,76 @@ async function analyzeRepository(repositoryUrl) {
     generatedAt: (/* @__PURE__ */ new Date()).toISOString()
   };
 }
+
+// server/_core/trpc.ts
+var t = initTRPC.context().create({
+  transformer: superjson,
+  errorFormatter: ({ shape, error }) => {
+    const cause = error.cause instanceof RepositoryAnalysisError ? error.cause : void 0;
+    const retryData = cause?.code === "RATE_LIMIT" ? {
+      retryAt: cause.retryAt,
+      retryAfterSeconds: cause.retryAfterSeconds
+    } : {};
+    return {
+      ...shape,
+      data: {
+        ...shape.data,
+        ...retryData
+      }
+    };
+  }
+});
+var router = t.router;
+var publicProcedure = t.procedure;
+var requireUser = t.middleware(async (opts) => {
+  const { ctx, next } = opts;
+  if (!ctx.user) {
+    throw new TRPCError2({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
+  }
+  return next({
+    ctx: {
+      ...ctx,
+      user: ctx.user
+    }
+  });
+});
+var protectedProcedure = t.procedure.use(requireUser);
+var adminProcedure = t.procedure.use(
+  t.middleware(async (opts) => {
+    const { ctx, next } = opts;
+    if (!ctx.user || ctx.user.role !== "admin") {
+      throw new TRPCError2({ code: "FORBIDDEN", message: NOT_ADMIN_ERR_MSG });
+    }
+    return next({
+      ctx: {
+        ...ctx,
+        user: ctx.user
+      }
+    });
+  })
+);
+
+// server/_core/systemRouter.ts
+var systemRouter = router({
+  health: publicProcedure.input(
+    z.object({
+      timestamp: z.number().min(0, "timestamp cannot be negative")
+    })
+  ).query(() => ({
+    ok: true
+  })),
+  notifyOwner: adminProcedure.input(
+    z.object({
+      title: z.string().min(1, "title is required"),
+      content: z.string().min(1, "content is required")
+    })
+  ).mutation(async ({ input }) => {
+    const delivered = await notifyOwner(input);
+    return {
+      success: delivered
+    };
+  })
+});
 
 // server/routers.ts
 var assistantInput = z2.object({

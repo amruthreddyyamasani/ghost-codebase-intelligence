@@ -52,6 +52,19 @@ function riskLabel(risk: number) {
   return "stable";
 }
 
+function rateLimitGuidance(data?: { code?: string; retryAt?: number; retryAfterSeconds?: number }) {
+  if (data?.code !== "TOO_MANY_REQUESTS") return null;
+  if (typeof data.retryAt === "number" && Number.isFinite(data.retryAt) && data.retryAt > 0) {
+    return `GitHub is rate-limited. Retry after ${new Date(data.retryAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.`;
+  }
+  if (typeof data.retryAfterSeconds === "number" && Number.isFinite(data.retryAfterSeconds) && data.retryAfterSeconds >= 0) {
+    return data.retryAfterSeconds === 0
+      ? "GitHub rate limit reset is due now. Retry the scan."
+      : `GitHub is rate-limited. Retry in about ${Math.ceil(data.retryAfterSeconds / 60)} minute${data.retryAfterSeconds < 120 ? "" : "s"}.`;
+  }
+  return "GitHub is rate-limited. Try again later.";
+}
+
 function RiskBar({ value }: { value: number }) {
   return <span className="risk-bar"><i style={{ width: `${Math.max(6, value)}%` }} /></span>;
 }
@@ -77,6 +90,9 @@ export default function Home() {
       setAssistantMessages(current => [...current, { role: "ghost", content: data.answer }]);
     },
   });
+
+  const analysisErrorData = analyzeMutation.error?.data as { code?: string; retryAt?: number; retryAfterSeconds?: number } | undefined;
+  const importErrorMessage = rateLimitGuidance(analysisErrorData) ?? analyzeMutation.error?.message;
 
   const selectedNode = useMemo<AnalysisNode | undefined>(() => analysis?.nodes.find(node => node.path === selectedPath), [analysis, selectedPath]);
   const dependencies = useMemo(() => analysis?.edges.filter(edge => edge.source === selectedPath).map(edge => edge.target) ?? [], [analysis, selectedPath]);
@@ -165,7 +181,7 @@ export default function Home() {
                 {analyzeMutation.isPending ? "Scanning" : "Analyze repo"}
               </button>
             </form>
-            {analyzeMutation.error && <div className="form-error"><CircleAlert size={15} />{analyzeMutation.error.message}</div>}
+            {analyzeMutation.error && <div className="form-error"><CircleAlert size={15} />{importErrorMessage}</div>}
             <div className="micro-proof"><span><i />public repos only</span><span><i />no source leaves your session</span><span><i />deterministic import graph</span></div>
           </div>
           <div className="hero-signal" aria-label="Analysis promise">

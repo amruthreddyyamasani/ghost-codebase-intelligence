@@ -14,10 +14,25 @@ export class RepositoryAnalysisError extends Error {
     public readonly code: RepositoryAnalysisErrorCode,
     message: string,
     public readonly status: number,
+    public readonly retryAt?: number,
+    public readonly retryAfterSeconds?: number,
   ) {
     super(message);
     this.name = "RepositoryAnalysisError";
   }
+}
+
+function rateLimitMetadata(response: Response) {
+  const resetSeconds = Number(response.headers.get("x-ratelimit-reset"));
+  const retryAfterValue = response.headers.get("retry-after");
+  const retryAfterHeader = retryAfterValue === null ? undefined : Number(retryAfterValue);
+  const retryAt = Number.isFinite(resetSeconds) && resetSeconds > 0 ? resetSeconds * 1000 : undefined;
+  const retryAfterSeconds = typeof retryAfterHeader === "number" && Number.isFinite(retryAfterHeader) && retryAfterHeader >= 0
+    ? Math.ceil(retryAfterHeader)
+    : retryAt
+      ? Math.max(0, Math.ceil((retryAt - Date.now()) / 1000))
+      : undefined;
+  return { retryAt, retryAfterSeconds };
 }
 
 type GitHubRepo = {
@@ -76,7 +91,8 @@ async function githubJson<T>(path: string): Promise<T> {
       throw new RepositoryAnalysisError("NOT_FOUND", "Repository not found or not publicly accessible.", 404);
     }
     if (response.status === 403 || response.status === 429 || response.headers.get("x-ratelimit-remaining") === "0") {
-      throw new RepositoryAnalysisError("RATE_LIMIT", "GitHub rate limit reached. Try again in a moment.", 429);
+      const metadata = rateLimitMetadata(response);
+      throw new RepositoryAnalysisError("RATE_LIMIT", "GitHub rate limit reached. Try again later.", 429, metadata.retryAt, metadata.retryAfterSeconds);
     }
     throw new RepositoryAnalysisError("GITHUB_ERROR", `GitHub returned ${response.status}.`, 502);
   }

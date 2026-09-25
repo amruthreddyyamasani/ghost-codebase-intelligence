@@ -33,14 +33,17 @@ describe("GHOST repository analyzer", () => {
   it("distinguishes invalid URLs, missing repositories, and rate limits", async () => {
     await expect(analyzeRepository("https://example.com/not-github")).rejects.toMatchObject({ code: "INVALID_URL", status: 400 });
 
+    const resetSeconds = Math.floor(Date.now() / 1000) + 600;
     globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url.includes("/missing")) return new Response("", { status: 404 });
-      return new Response("", { status: 403, headers: { "x-ratelimit-remaining": "0" } });
+      return new Response("", { status: 403, headers: { "x-ratelimit-remaining": "0", "x-ratelimit-reset": String(resetSeconds) } });
     }) as typeof fetch;
 
     await expect(analyzeRepository("https://github.com/acme/missing")).rejects.toMatchObject({ code: "NOT_FOUND", status: 404 });
-    await expect(analyzeRepository("https://github.com/acme/rate-limited")).rejects.toMatchObject({ code: "RATE_LIMIT", status: 429 });
+    const rateLimitError = await analyzeRepository("https://github.com/acme/rate-limited").catch(error => error);
+    expect(rateLimitError).toMatchObject({ code: "RATE_LIMIT", status: 429, retryAt: resetSeconds * 1000 });
+    expect(rateLimitError.retryAfterSeconds).toBeGreaterThan(590);
   });
 
   it("resolves relative imports and reports circular dependencies", async () => {

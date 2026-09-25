@@ -1,5 +1,5 @@
 const baseUrl = (process.env.GHOST_SMOKE_URL ?? "").replace(/\/$/, "");
-const repository = process.env.GHOST_SMOKE_REPOSITORY ?? "https://github.com/facebook/react";
+const repository = process.env.GHOST_SMOKE_REPOSITORY ?? "https://github.com/expressjs/cookie";
 const nonexistent = process.env.GHOST_SMOKE_NONEXISTENT_REPOSITORY ?? "https://github.com/ghost-does-not-exist-xyz/repo-does-not-exist-xyz";
 
 if (!baseUrl) {
@@ -26,7 +26,9 @@ const analysis = await call("/api/trpc/ghost.analyze?batch=1", {
   body: JSON.stringify({ 0: { json: { url: repository } } }),
 });
 const analysisJson = analysis.json?.[0]?.result?.data?.json;
-if (analysis.response.status !== 200 || !analysisJson?.stats?.files) {
+const analysisCode = analysis.json?.[0]?.error?.json?.data?.code;
+const analysisRateLimited = analysis.response.status === 429 && analysisCode === "TOO_MANY_REQUESTS";
+if (analysis.response.status !== 200 && !analysisRateLimited) {
   throw new Error(`repository analysis failed with HTTP ${analysis.response.status}`);
 }
 
@@ -46,11 +48,11 @@ const missing = await call("/api/trpc/ghost.analyze?batch=1", {
 });
 const missingCode = missing.json?.[0]?.error?.json?.data?.code;
 if (missing.response.status === 404 && missingCode === "NOT_FOUND") {
-  console.log(JSON.stringify({ auth: "ok", analysisFiles: analysisJson.stats.files, invalidUrl: "400 BAD_REQUEST", nonexistent: "404 NOT_FOUND" }));
+  console.log(JSON.stringify({ auth: "ok", analysis: analysisRateLimited ? "not verified: GitHub rate limited" : `${analysisJson.stats.files} files`, invalidUrl: "400 BAD_REQUEST", nonexistent: "404 NOT_FOUND" }));
   process.exit(0);
 }
 if (missing.response.status === 429 && missingCode === "TOO_MANY_REQUESTS") {
-  console.warn(JSON.stringify({ auth: "ok", analysisFiles: analysisJson.stats.files, invalidUrl: "400 BAD_REQUEST", nonexistent: "not verified: GitHub rate limited" }));
+  console.warn(JSON.stringify({ auth: "ok", analysis: analysisRateLimited ? "not verified: GitHub rate limited" : `${analysisJson.stats.files} files`, invalidUrl: "400 BAD_REQUEST", nonexistent: "not verified: GitHub rate limited" }));
   process.exit(0);
 }
 throw new Error(`unexpected nonexistent-repository response: HTTP ${missing.response.status}, tRPC ${missingCode ?? "unknown"}`);

@@ -53,6 +53,24 @@ Never commit a real `.env` file. Set the variables in your shell, secret manager
 
 For a standalone deployment without Manus OAuth, leave the OAuth/database variables unset and use the public analysis surface. Configure `GROQ_API_KEY` only on the server; do not prefix it with `VITE_` or expose it to the browser.
 
+### Configure `GITHUB_TOKEN` in Vercel
+
+In Vercel, open **Project Settings → Environment Variables → Add New**. Set the name to `GITHUB_TOKEN`, paste the token into the secret value field, and select both **Production** and **Preview** environments. Do not select Development unless you also want local Vercel CLI pulls to receive it. Save the variable and redeploy the project; existing deployments do not receive newly added environment variables automatically.
+
+For public-repository scanning, the minimum recommended credential is a GitHub fine-grained personal access token with **Contents: Read-only** and the required **Metadata: Read-only** permission. Limit the resource owner and repository access to the public repositories you intend to scan. No Issues, Pull requests, Actions, Administration, write, or webhook permissions are needed. Unauthenticated scanning remains supported when `GITHUB_TOKEN` is absent, but GitHub's lower anonymous quota applies.
+
+### Enable the GitHub Actions smoke job
+
+The workflow is already configured to read a repository variable named `GHOST_SMOKE_URL`. To enable its live smoke job, open the GitHub repository and go to **Settings → Secrets and variables → Actions → Variables → New repository variable**. Add:
+
+| Name | Value |
+|---|---|
+| `GHOST_SMOKE_URL` | `https://ghost-codebase-intelligence.vercel.app/` |
+| `GHOST_SMOKE_REPOSITORY` | Optional; defaults to `https://github.com/expressjs/cookie` |
+| `GHOST_SMOKE_NONEXISTENT_REPOSITORY` | Optional; defaults to a known nonexistent GitHub repository |
+
+Then run **Actions → GHOST CI → Run workflow** or push to `main`. The job checks `auth.me`, a small public repository analysis, invalid URL mapping, and nonexistent-repository handling. If GitHub returns `429 TOO_MANY_REQUESTS`, the job reports the analysis or nonexistent-repository check as not verified and exits successfully rather than producing a false failure. The smoke job is not considered active until this variable is configured and the workflow has run.
+
 ## Deployment
 
 ### Node / container deployment
