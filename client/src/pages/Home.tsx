@@ -93,6 +93,7 @@ export default function Home() {
 
   const analysisErrorData = analyzeMutation.error?.data as { code?: string; retryAt?: number; retryAfterSeconds?: number } | undefined;
   const importErrorMessage = rateLimitGuidance(analysisErrorData) ?? analyzeMutation.error?.message;
+  const canRetryScan = analysisErrorData?.code === "TOO_MANY_REQUESTS";
 
   const selectedNode = useMemo<AnalysisNode | undefined>(() => analysis?.nodes.find(node => node.path === selectedPath), [analysis, selectedPath]);
   const dependencies = useMemo(() => analysis?.edges.filter(edge => edge.source === selectedPath).map(edge => edge.target) ?? [], [analysis, selectedPath]);
@@ -181,7 +182,7 @@ export default function Home() {
                 {analyzeMutation.isPending ? "Scanning" : "Analyze repo"}
               </button>
             </form>
-            {analyzeMutation.error && <div className="form-error"><CircleAlert size={15} />{importErrorMessage}</div>}
+            {analyzeMutation.error && <div className="form-error"><CircleAlert size={15} /><span>{importErrorMessage}</span>{canRetryScan && <button type="button" onClick={() => analyzeMutation.mutate({ url: repoUrl.trim() })} disabled={analyzeMutation.isPending || !repoUrl.trim()}>Retry Scan</button>}</div>}
             <div className="micro-proof"><span><i />public repos only</span><span><i />no source leaves your session</span><span><i />deterministic import graph</span></div>
           </div>
           <div className="hero-signal" aria-label="Analysis promise">
