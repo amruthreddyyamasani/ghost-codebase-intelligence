@@ -1,5 +1,5 @@
 const baseUrl = (process.env.GHOST_SMOKE_URL ?? "").replace(/\/$/, "");
-const repository = process.env.GHOST_SMOKE_REPOSITORY ?? "https://github.com/expressjs/cookie";
+const repository = process.env.GHOST_SMOKE_REPOSITORY ?? "https://github.com/ljharb/qs";
 const nonexistent = process.env.GHOST_SMOKE_NONEXISTENT_REPOSITORY ?? "https://github.com/ghost-does-not-exist-xyz/repo-does-not-exist-xyz";
 
 if (!baseUrl) {

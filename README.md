@@ -66,7 +66,7 @@ The workflow is already configured to read a repository variable named `GHOST_SM
 | Name | Value |
 |---|---|
 | `GHOST_SMOKE_URL` | `https://ghost-codebase-intelligence.vercel.app/` |
-| `GHOST_SMOKE_REPOSITORY` | Optional; defaults to `https://github.com/expressjs/cookie` |
+| `GHOST_SMOKE_REPOSITORY` | Optional; defaults to `https://github.com/ljharb/qs` |
 | `GHOST_SMOKE_NONEXISTENT_REPOSITORY` | Optional; defaults to a known nonexistent GitHub repository |
 
 Then run **Actions → GHOST CI → Run workflow** or push to `main`. The job checks `auth.me`, a small public repository analysis, invalid URL mapping, and nonexistent-repository handling. If GitHub returns `429 TOO_MANY_REQUESTS`, the job reports the analysis or nonexistent-repository check as not verified and exits successfully rather than producing a false failure. The smoke job is not considered active until this variable is configured and the workflow has run.
