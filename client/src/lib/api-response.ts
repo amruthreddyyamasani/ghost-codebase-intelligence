@@ -39,18 +39,20 @@ export async function normalizeTRPCResponse(response: Response): Promise<Respons
     parsed = JSON.parse(text);
   } catch {
     const body = JSON.stringify(fallbackEnvelope(response.status));
+    const headers = new Headers(response.headers);
+    headers.set("content-type", "application/json");
     return new Response(body, {
       status: response.status,
       statusText: response.statusText,
-      headers: new Headers(response.headers),
+      headers,
     });
   }
 
-  if (contentType.includes("json") && Array.isArray(parsed)) return response;
+  if (contentType.includes("json")) return response;
 
   const headers = new Headers(response.headers);
   headers.set("content-type", "application/json");
-  const body = Array.isArray(parsed) ? parsed : fallbackEnvelope(response.status);
+  const body = parsed;
   return new Response(JSON.stringify(body), {
     status: response.status,
     statusText: response.statusText,

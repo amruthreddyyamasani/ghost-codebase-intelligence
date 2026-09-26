@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Streamdown } from "streamdown";
 import {
   ArrowDownRight,
@@ -23,6 +23,7 @@ import {
   X,
 } from "lucide-react";
 import ArchitectureGraph from "@/components/ArchitectureGraph";
+import { getRetryDeadline, rateLimitGuidance, type RateLimitData } from "@/lib/retry";
 import { trpc } from "@/lib/trpc";
 import type { AnalysisNode, RepositoryAnalysis } from "@shared/ghost";
 
@@ -52,19 +53,6 @@ function riskLabel(risk: number) {
   return "stable";
 }
 
-function rateLimitGuidance(data?: { code?: string; retryAt?: number; retryAfterSeconds?: number }) {
-  if (data?.code !== "TOO_MANY_REQUESTS") return null;
-  if (typeof data.retryAt === "number" && Number.isFinite(data.retryAt) && data.retryAt > 0) {
-    return `GitHub is rate-limited. Retry after ${new Date(data.retryAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.`;
-  }
-  if (typeof data.retryAfterSeconds === "number" && Number.isFinite(data.retryAfterSeconds) && data.retryAfterSeconds >= 0) {
-    return data.retryAfterSeconds === 0
-      ? "GitHub rate limit reset is due now. Retry the scan."
-      : `GitHub is rate-limited. Retry in about ${Math.ceil(data.retryAfterSeconds / 60)} minute${data.retryAfterSeconds < 120 ? "" : "s"}.`;
-  }
-  return "GitHub is rate-limited. Try again later.";
-}
-
 function RiskBar({ value }: { value: number }) {
   return <span className="risk-bar"><i style={{ width: `${Math.max(6, value)}%` }} /></span>;
 }
@@ -75,6 +63,9 @@ export default function Home() {
   const [selectedPath, setSelectedPath] = useState<string | undefined>();
   const [question, setQuestion] = useState("");
   const [assistantMessages, setAssistantMessages] = useState<AssistantMessage[]>([]);
+  const [lastAttemptedUrl, setLastAttemptedUrl] = useState("");
+  const [retryRemainingMs, setRetryRemainingMs] = useState(0);
+  const [activeSection, setActiveSection] = useState("import");
 
   const analyzeMutation = trpc.ghost.analyze.useMutation({
     onSuccess: data => {
@@ -91,9 +82,35 @@ export default function Home() {
     },
   });
 
-  const analysisErrorData = analyzeMutation.error?.data as { code?: string; retryAt?: number; retryAfterSeconds?: number } | undefined;
-  const importErrorMessage = rateLimitGuidance(analysisErrorData) ?? analyzeMutation.error?.message;
-  const canRetryScan = analysisErrorData?.code === "TOO_MANY_REQUESTS";
+  const analysisErrorData = analyzeMutation.error?.data as RateLimitData | undefined;
+  const retryDeadline = useMemo(() => getRetryDeadline(analysisErrorData), [analysisErrorData]);
+  const isRateLimited = analysisErrorData?.code === "TOO_MANY_REQUESTS";
+  const retryAvailable = !retryDeadline || retryRemainingMs <= 0;
+  const importErrorMessage = rateLimitGuidance(analysisErrorData, retryRemainingMs) ?? analyzeMutation.error?.message;
+
+  useEffect(() => {
+    if (!isRateLimited || !retryDeadline) {
+      setRetryRemainingMs(0);
+      return;
+    }
+    const updateRemaining = () => setRetryRemainingMs(Math.max(0, retryDeadline - Date.now()));
+    updateRemaining();
+    const interval = window.setInterval(updateRemaining, 1000);
+    return () => window.clearInterval(interval);
+  }, [isRateLimited, retryDeadline]);
+
+  useEffect(() => {
+    const sections = ["import", "explorer", "signals", "assistant"]
+      .map(id => document.getElementById(id))
+      .filter((section): section is HTMLElement => Boolean(section));
+    if (!sections.length) return;
+    const observer = new IntersectionObserver(entries => {
+      const visible = entries.filter(entry => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+      if (visible) setActiveSection(visible.target.id);
+    }, { rootMargin: "-18% 0px -55%", threshold: [0.1, 0.35, 0.7] });
+    sections.forEach(section => observer.observe(section));
+    return () => observer.disconnect();
+  }, [analysis]);
 
   const selectedNode = useMemo<AnalysisNode | undefined>(() => analysis?.nodes.find(node => node.path === selectedPath), [analysis, selectedPath]);
   const dependencies = useMemo(() => analysis?.edges.filter(edge => edge.source === selectedPath).map(edge => edge.target) ?? [], [analysis, selectedPath]);
@@ -119,7 +136,13 @@ export default function Home() {
   const handleAnalyze = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!repoUrl.trim() || analyzeMutation.isPending) return;
-    analyzeMutation.mutate({ url: repoUrl.trim() });
+    const url = repoUrl.trim();
+    setLastAttemptedUrl(url);
+    analyzeMutation.mutate({ url });
+  };
+  const handleRetry = () => {
+    if (!lastAttemptedUrl || analyzeMutation.isPending || !retryAvailable) return;
+    analyzeMutation.mutate({ url: lastAttemptedUrl });
   };
 
   const askQuestion = (text: string) => {
@@ -150,10 +173,10 @@ export default function Home() {
         <div className="rail-rule" />
         <nav className="rail-nav" aria-label="Primary navigation">
           <span className="rail-caption">WORKSPACE</span>
-          <a href="#import" className="rail-link active"><ScanSearch size={15} />Import</a>
-          <a href="#explorer" className="rail-link"><Network size={15} />Explorer</a>
-          <a href="#signals" className="rail-link"><ShieldAlert size={15} />Signals <span className="rail-count">{analysis?.stats.hotspots ?? "—"}</span></a>
-          <a href="#assistant" className="rail-link"><MessageSquareText size={15} />Assistant</a>
+          <a href="#import" className={`rail-link ${activeSection === "import" ? "active" : ""}`}><ScanSearch size={15} />Import</a>
+          <a href="#explorer" className={`rail-link ${activeSection === "explorer" ? "active" : ""}`}><Network size={15} />Explorer</a>
+          <a href="#signals" className={`rail-link ${activeSection === "signals" ? "active" : ""}`}><ShieldAlert size={15} />Signals <span className="rail-count">{analysis?.stats.hotspots ?? "—"}</span></a>
+          <a href="#assistant" className={`rail-link ${activeSection === "assistant" ? "active" : ""}`}><MessageSquareText size={15} />Assistant</a>
         </nav>
         <div className="rail-spacer" />
         <div className="engine-status"><i /> <span>ANALYSIS ENGINE<br /><b>ONLINE / V1.0</b></span></div>
@@ -182,7 +205,7 @@ export default function Home() {
                 {analyzeMutation.isPending ? "Scanning" : "Analyze repo"}
               </button>
             </form>
-            {analyzeMutation.error && <div className="form-error"><CircleAlert size={15} /><span>{importErrorMessage}</span>{canRetryScan && <button type="button" onClick={() => analyzeMutation.mutate({ url: repoUrl.trim() })} disabled={analyzeMutation.isPending || !repoUrl.trim()}>Retry Scan</button>}</div>}
+            {analyzeMutation.error && (isRateLimited ? <div className="rate-limit-retry" role="alert"><div className="rate-limit-copy"><CircleAlert size={15} /><span>{importErrorMessage}</span></div><button className="retry-button" type="button" onClick={handleRetry} disabled={analyzeMutation.isPending || !lastAttemptedUrl || !retryAvailable}>{analyzeMutation.isPending ? <LoaderCircle className="spin" size={14} /> : <RefreshCw size={14} />}{analyzeMutation.isPending ? "Retrying" : retryAvailable ? "Retry scan" : "Retry locked"}</button></div> : <div className="form-error"><CircleAlert size={15} /><span>{importErrorMessage}</span></div>)}
             <div className="micro-proof"><span><i />public repos only</span><span><i />no source leaves your session</span><span><i />deterministic import graph</span></div>
           </div>
           <div className="hero-signal" aria-label="Analysis promise">
