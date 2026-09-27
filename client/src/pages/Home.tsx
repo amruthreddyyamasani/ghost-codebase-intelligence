@@ -164,7 +164,7 @@ export default function Home() {
   };
 
   return (
-    <div className="ghost-app">
+    <div className={`ghost-app ${analysis ? "has-analysis" : "idle-workspace"}`}>
       <aside className="rail">
         <div className="brand-lockup">
           <div className="brand-mark">G</div>
@@ -237,8 +237,12 @@ export default function Home() {
           <>
             <section className="workbench-section" id="explorer">
               <div className="section-heading"><div><div className="eyebrow"><span>02</span> / ARCHITECTURE EXPLORER</div><h2>{analysis.repo.name}<span> / {analysis.repo.owner}</span></h2></div><a className="text-link" href={analysis.repo.url} target="_blank" rel="noreferrer"><Github size={15} /> view on GitHub <ArrowUpRight size={14} /></a></div>
+              <div className="graph-toolbar" aria-label="Graph controls">
+                <div className="graph-tabs"><button className="graph-tab active" type="button"><Network size={13} /> Graph</button><button className="graph-tab" type="button"><Waypoints size={13} /> Layers</button><button className="graph-tab" type="button"><RefreshCw size={13} /> Cycles <b>{analysis.cycles.length}</b></button></div>
+                <div className="graph-toolbar-meta"><span>{analysis.nodes.length} nodes</span><span>{analysis.edges.length} edges</span><span className="live-dot" /> live topology</div>
+              </div>
               <div className="workbench surface">
-                <div className="graph-pane"><ArchitectureGraph nodes={graphNodes} edges={analysis.edges} selectedPath={selectedPath} onSelect={selectFile} /><div className="graph-footnote">showing {graphNodes.length} of {analysis.nodes.length} source modules · click a node to trace impact</div></div>
+                <div className="graph-pane"><div className="graph-pane-grid"><aside className="source-tree" aria-label="Scanned source files"><div className="source-tree-head"><span>FILES</span><span>{analysis.nodes.length}</span></div><div className="source-tree-search"><Search size={12} /><span>filter modules</span></div>{analysis.nodes.slice(0, 18).map(node => <button key={node.path} className={`source-tree-row ${node.path === selectedPath ? "selected" : ""}`} type="button" onClick={() => selectFile(node.path)}><FileCode2 size={12} /><span>{node.path.split("/").pop()}</span><small>{node.layer}</small></button>)}</aside><div className="graph-stage"><ArchitectureGraph nodes={graphNodes} edges={analysis.edges} selectedPath={selectedPath} onSelect={selectFile} /></div></div><div className="graph-footnote">showing {graphNodes.length} of {analysis.nodes.length} source modules · click a node to trace impact</div></div>
                 <aside className="inspector" id="file-inspector">
                   <div className="inspector-head"><span className="section-kicker">FILE INSPECTOR</span><span className="mini-badge">{selectedNode ? riskLabel(selectedNode.risk) : "—"}</span></div>
                   {selectedNode ? (
