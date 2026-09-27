@@ -212,6 +212,7 @@ export default function Home() {
             <div className="signal-grid" />
             <div className="signal-orbit orbit-a" /><div className="signal-orbit orbit-b" />
             <div className="signal-core"><Braces size={20} /><span>map the<br /><b>unknown</b></span></div>
+            <div className="idle-topology" aria-hidden="true"><svg viewBox="0 0 420 270" role="presentation"><path d="M54 190 135 117 212 166 284 82 368 145M135 117 171 45 284 82M212 166 244 235 368 145M212 166 284 82" /><path d="M54 190 212 166 368 145" /></svg><i className="idle-node n1" /><i className="idle-node n2" /><i className="idle-node n3" /><i className="idle-node n4" /><i className="idle-node n5" /><i className="idle-node n6" /><span className="idle-topology-note">empty canvas / scan to resolve topology</span></div>
             <span className="signal-label label-top">IMPORT GRAPH</span><span className="signal-label label-bottom">TRACE / EXPLAIN / CHANGE</span>
           </div>
         </section>
