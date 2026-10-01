@@ -1,12 +1,24 @@
-# GHOST interface update
+# GHOST interface redesign
 
-This source update adds:
-- Scroll-triggered reveal transitions for major workbench sections, with reduced-motion support.
-- Scroll-aware active states for the persistent workspace rail.
-- A restrained animated 3D point-field atmosphere and ground grid in the architecture graph.
-- More dimensional graph nodes with emissive selection/hover feedback.
-- Focus-visible keyboard affordances and small interaction refinements.
+This revision keeps the existing repository analysis and assistant flows while replacing the presentation layer with a more distinctive industrial/CRT developer-tool system.
 
-The existing repository analyzer, tRPC procedures, API routes, GitHub integration, assistant flow, and analysis contracts were left in place.
+## Visual direction
+- Industrial computing / CRT instrumentation aesthetic rather than generic SaaS.
+- Near-black base with phosphor lime as the primary interaction color.
+- Muted cyan for architecture relationships and amber/red for warnings.
+- Technical labels, restrained mechanical framing, dense readouts, and editorial typography.
+- Architecture visualization remains the visual centerpiece.
 
-Validation note: this package was source-reviewed and structurally checked. A full dependency install/build was not run in this environment because pnpm is not installed here. Run `pnpm install --frozen-lockfile`, `pnpm check`, `pnpm test`, and `pnpm build:vercel` before deploying.
+## Motion direction
+The motion system takes cues from current cinematic web patterns: scroll-linked scene movement, progressive section reveals, subtle pointer/selection feedback, and continuous 3D camera/topology motion. Motion is implemented with existing React Three Fiber/Three.js plus CSS transitions so the experience remains tied to the real analysis UI rather than an external video mockup.
+
+## Preserved behavior
+- Repository import and validation.
+- tRPC analysis and rate-limit retry behavior.
+- Dependency topology and file selection.
+- Source-grounded assistant context.
+- Existing server/API/data contracts.
+- Responsive desktop/mobile behavior.
+
+## Validation
+The environment did not have the project's npm dependencies installed, and the package manager could not be fetched because the npm registry was unavailable. A global `tsc --noEmit` invocation reached configuration/type-library resolution but could not run the project check without the repository's installed dependencies. No claim of a successful production build is made from this environment.
