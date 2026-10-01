@@ -1,0 +1,55 @@
+/* Component-level GHOST redesign: the page is a navigable intelligence field, not a static dashboard. */
+.ghost-app { background: radial-gradient(circle at 78% 8%, rgba(51, 91, 50, .16), transparent 28rem), #070a08; }
+.rail { background: linear-gradient(180deg, #0b110d 0%, #080b09 70%); box-shadow: 14px 0 50px rgba(0,0,0,.2); }
+.rail-intro { margin: 0 10px 20px; color: #4e614c; font: 9px/1.4 var(--mono); letter-spacing: .1em; text-transform: uppercase; }
+.rail-intro span { float: right; color: var(--lime); }
+.rail-link { position: relative; min-height: 43px; border-left: 1px solid transparent; }
+.rail-link b { width: 20px; color: #52604e; font: 9px var(--mono); font-weight: 400; }
+.rail-link.active { border-left-color: var(--lime); background: linear-gradient(90deg, rgba(199,243,107,.13), transparent); }
+.rail-link.active b { color: var(--lime); }
+.hero { min-height: 690px; align-items: center; padding-top: 100px; padding-bottom: 100px; }
+.hero-copy { position: relative; z-index: 2; }
+.hero h1 { max-width: 760px; font-size: clamp(64px, 8vw, 118px); line-height: .88; letter-spacing: -.085em; }
+.hero h1 em { text-shadow: 0 0 38px rgba(199,243,107,.18); }
+.hero-copy > p { max-width: 470px; font-size: 16px; }
+.hero-index { margin-left: auto; color: #51614d; font: 9px var(--mono); font-weight: 400; letter-spacing: .08em; }
+.signal-field { position: relative; width: min(100%, 560px); height: min(48vw, 560px); min-height: 390px; margin: auto; overflow: hidden; border: 1px solid rgba(199,243,107,.24); background: #070b0a; box-shadow: inset 0 0 80px rgba(91, 142, 69, .08), 0 28px 100px rgba(0,0,0,.28); }
+.signal-field::before { position: absolute; inset: 14px; z-index: 1; border: 1px solid rgba(199,243,107,.12); content: ""; pointer-events: none; }
+.signal-field::after { position: absolute; inset: 0; z-index: 1; background: linear-gradient(120deg, transparent 0 48%, rgba(199,243,107,.08) 50%, transparent 52%); background-size: 240% 100%; animation: field-sweep 7s linear infinite; content: ""; pointer-events: none; }
+.signal-field canvas { display: block; }
+.signal-field-label, .signal-field-readout { position: absolute; z-index: 2; color: #71816a; font: 9px var(--mono); letter-spacing: .12em; text-transform: uppercase; }
+.signal-field-label { top: 26px; left: 28px; display: flex; flex-direction: column; gap: 6px; }
+.signal-field-label b { color: #d8e8c7; font-weight: 400; }
+.signal-field-readout { right: 25px; bottom: 24px; display: flex; align-items: center; gap: 8px; letter-spacing: .05em; }
+.signal-field-readout i { width: 5px; height: 5px; border-radius: 50%; background: var(--lime); box-shadow: 0 0 12px var(--lime); }
+.signal-field-readout strong { color: var(--lime); font-weight: 400; }
+.chapter-section { position: relative; }
+.chapter-section::before { position: absolute; top: 28px; right: 7%; color: #2d3b2b; content: "// CHAPTER"; font: 9px var(--mono); letter-spacing: .15em; }
+.chapter-section:not(.is-visible) { opacity: 0; transform: translateY(46px); }
+.chapter-section.is-visible { opacity: 1; transform: translateY(0); transition: opacity 850ms ease, transform 850ms cubic-bezier(.2,.8,.2,1); }
+.workbench-section, .signals-section, .assistant-section { min-height: 760px; padding-top: 128px; }
+.section-heading h2 { font-size: clamp(34px, 4vw, 54px); }
+.workbench { box-shadow: 0 28px 80px rgba(0,0,0,.22); }
+.signals-grid { gap: 18px; }
+.signal-list, .cycle-panel, .assistant-panel { box-shadow: 0 22px 70px rgba(0,0,0,.2); }
+.assistant-section { align-items: center; }
+.footer { margin-top: 70px; }
+@keyframes field-sweep { from { background-position: 200% 0; } to { background-position: -40% 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .chapter-section:not(.is-visible) { opacity: 1; transform: none; }
+  .chapter-section.is-visible { transition: none; }
+  .signal-field::after { animation: none; }
+}
+@media (max-width: 1100px) {
+  .hero { min-height: auto; }
+  .signal-field { width: min(100%, 600px); margin-top: 30px; }
+}
+@media (max-width: 760px) {
+  .rail-intro { display: none; }
+  .hero { padding-top: 70px; padding-bottom: 70px; }
+  .hero h1 { font-size: clamp(54px, 16vw, 86px); }
+  .hero-index { display: none; }
+  .signal-field { height: 390px; min-height: 390px; }
+  .chapter-section::before { display: none; }
+  .workbench-section, .signals-section, .assistant-section { min-height: 0; padding-top: 90px; padding-bottom: 30px; }
+}

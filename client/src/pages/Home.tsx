@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Streamdown } from "streamdown";
 import {
   ArrowDownRight,
@@ -23,6 +23,7 @@ import {
   X,
 } from "lucide-react";
 import ArchitectureGraph from "@/components/ArchitectureGraph";
+import SignalField from "@/components/SignalField";
 import { trpc } from "@/lib/trpc";
 import type { AnalysisNode, RepositoryAnalysis } from "@shared/ghost";
 
@@ -70,6 +71,8 @@ function RiskBar({ value }: { value: number }) {
 }
 
 export default function Home() {
+  const [activeSection, setActiveSection] = useState("import");
+  const [scrollProgress, setScrollProgress] = useState(0);
   const [repoUrl, setRepoUrl] = useState("https://github.com/facebook/react");
   const [analysis, setAnalysis] = useState<RepositoryAnalysis | null>(null);
   const [selectedPath, setSelectedPath] = useState<string | undefined>();
@@ -99,6 +102,35 @@ export default function Home() {
   const dependencies = useMemo(() => analysis?.edges.filter(edge => edge.source === selectedPath).map(edge => edge.target) ?? [], [analysis, selectedPath]);
   const dependents = useMemo(() => analysis?.edges.filter(edge => edge.target === selectedPath).map(edge => edge.source) ?? [], [analysis, selectedPath]);
   const graphNodes = useMemo(() => analysis?.nodes.slice(0, 100) ?? [], [analysis]);
+
+  useEffect(() => {
+    const sections = ["import", "explorer", "signals", "assistant"]
+      .map(id => document.getElementById(id))
+      .filter((section): section is HTMLElement => Boolean(section));
+    if (!sections.length) return;
+    const observer = new IntersectionObserver(entries => {
+      const visible = entries.filter(entry => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+      if (visible?.target instanceof HTMLElement) setActiveSection(visible.target.id);
+    }, { rootMargin: "-18% 0px -62% 0px", threshold: [0.1, 0.35, 0.65] });
+    const revealObserver = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) entry.target.classList.add("is-visible");
+      });
+    }, { rootMargin: "0px 0px -12% 0px", threshold: 0.08 });
+    sections.forEach(section => observer.observe(section));
+    sections.forEach(section => revealObserver.observe(section));
+    return () => { observer.disconnect(); revealObserver.disconnect(); };
+  }, [analysis]);
+
+  useEffect(() => {
+    const onScroll = () => {
+      const max = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
+      setScrollProgress(Math.min(1, Math.max(0, window.scrollY / max)));
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   const analysisContext = useMemo(() => {
     if (!analysis) return "";
@@ -148,12 +180,13 @@ export default function Home() {
           <div><strong>GHOST</strong><span>codebase intelligence</span></div>
         </div>
         <div className="rail-rule" />
+        <div className="rail-intro">/ WORKSPACE INDEX <span>01—04</span></div>
         <nav className="rail-nav" aria-label="Primary navigation">
           <span className="rail-caption">WORKSPACE</span>
-          <a href="#import" className="rail-link active"><ScanSearch size={15} />Import</a>
-          <a href="#explorer" className="rail-link"><Network size={15} />Explorer</a>
-          <a href="#signals" className="rail-link"><ShieldAlert size={15} />Signals <span className="rail-count">{analysis?.stats.hotspots ?? "—"}</span></a>
-          <a href="#assistant" className="rail-link"><MessageSquareText size={15} />Assistant</a>
+          <a href="#import" className={`rail-link ${activeSection === "import" ? "active" : ""}`}><b>01</b><ScanSearch size={15} />Import</a>
+          <a href="#explorer" className={`rail-link ${activeSection === "explorer" ? "active" : ""}`}><b>02</b><Network size={15} />Explorer</a>
+          <a href="#signals" className={`rail-link ${activeSection === "signals" ? "active" : ""}`}><b>03</b><ShieldAlert size={15} />Signals <span className="rail-count">{analysis?.stats.hotspots ?? "—"}</span></a>
+          <a href="#assistant" className={`rail-link ${activeSection === "assistant" ? "active" : ""}`}><b>04</b><MessageSquareText size={15} />Assistant</a>
         </nav>
         <div className="rail-spacer" />
         <div className="engine-status"><i /> <span>ANALYSIS ENGINE<br /><b>ONLINE / V1.0</b></span></div>
@@ -169,10 +202,10 @@ export default function Home() {
           </div>
         </header>
 
-        <section className="hero" id="import">
+        <section className="hero chapter-section" id="import" data-reveal="hero">
           <div className="hero-copy">
-            <div className="eyebrow"><span>01</span> / REPOSITORY IMPORT</div>
-            <h1>See the code<br /><em>behind the code.</em></h1>
+            <div className="eyebrow"><span>01</span> / REPOSITORY IMPORT <b className="hero-index">FIELD 01 / 04</b></div>
+            <h1>Read the <em>hidden</em><br />system.</h1>
             <p>GHOST turns unfamiliar JavaScript and TypeScript repositories into a navigable system of dependencies, risk, and intent.</p>
             <form className="import-form" onSubmit={handleAnalyze}>
               <Github size={18} />
@@ -185,12 +218,7 @@ export default function Home() {
             {analyzeMutation.error && <div className="form-error"><CircleAlert size={15} /><span>{importErrorMessage}</span>{canRetryScan && <button type="button" onClick={() => analyzeMutation.mutate({ url: repoUrl.trim() })} disabled={analyzeMutation.isPending || !repoUrl.trim()}>Retry Scan</button>}</div>}
             <div className="micro-proof"><span><i />public repos only</span><span><i />no source leaves your session</span><span><i />deterministic import graph</span></div>
           </div>
-          <div className="hero-signal" aria-label="Analysis promise">
-            <div className="signal-grid" />
-            <div className="signal-orbit orbit-a" /><div className="signal-orbit orbit-b" />
-            <div className="signal-core"><Braces size={20} /><span>map the<br /><b>unknown</b></span></div>
-            <span className="signal-label label-top">IMPORT GRAPH</span><span className="signal-label label-bottom">TRACE / EXPLAIN / CHANGE</span>
-          </div>
+          <SignalField progress={scrollProgress} />
         </section>
 
         <section className="metric-strip" aria-label="Repository statistics">
@@ -212,7 +240,7 @@ export default function Home() {
 
         {analysis && (
           <>
-            <section className="workbench-section" id="explorer">
+            <section className="workbench-section chapter-section" id="explorer" data-reveal="chapter">
               <div className="section-heading"><div><div className="eyebrow"><span>02</span> / ARCHITECTURE EXPLORER</div><h2>{analysis.repo.name}<span> / {analysis.repo.owner}</span></h2></div><a className="text-link" href={analysis.repo.url} target="_blank" rel="noreferrer"><Github size={15} /> view on GitHub <ArrowUpRight size={14} /></a></div>
               <div className="workbench surface">
                 <div className="graph-pane"><ArchitectureGraph nodes={graphNodes} edges={analysis.edges} selectedPath={selectedPath} onSelect={selectFile} /><div className="graph-footnote">showing {graphNodes.length} of {analysis.nodes.length} source modules · click a node to trace impact</div></div>
@@ -231,7 +259,7 @@ export default function Home() {
               </div>
             </section>
 
-            <section className="signals-section" id="signals">
+            <section className="signals-section chapter-section" id="signals" data-reveal="chapter">
               <div className="section-heading compact"><div><div className="eyebrow"><span>03</span> / RISK SIGNALS</div><h2>Where the graph <em>bends.</em></h2></div><span className="section-note">deterministic heuristics · no guesses</span></div>
               <div className="signals-grid">
                 <div className="surface signal-list"><div className="list-head"><span>COMPLEXITY HOTSPOTS</span><span>RISK / 99</span></div>{analysis.hotspots.map((node, index) => <button key={node.path} className="signal-row" onClick={() => selectFile(node.path)}><span className="rank">0{index + 1}</span><span className="signal-file"><b>{node.path.split("/").pop()}</b><small>{node.path}</small></span><RiskBar value={node.risk} /><strong className={node.risk >= 75 ? "critical" : ""}>{node.risk}</strong></button>)}{!analysis.hotspots.length && <div className="no-signals">No hotspots surfaced in the supported source set.</div>}</div>
@@ -239,7 +267,7 @@ export default function Home() {
               </div>
             </section>
 
-            <section className="assistant-section" id="assistant">
+            <section className="assistant-section chapter-section" id="assistant" data-reveal="chapter">
               <div className="assistant-copy"><div className="eyebrow"><span>04</span> / GHOST ASSISTANT</div><h2>Ask the<br /><em>evidence.</em></h2><p>The assistant sees the current scan, selected file, source excerpt, and resolved impact paths. It is instructed to stay inside those boundaries.</p><div className="assistant-stamp"><Bot size={15} /><span>source-grounded<br /><b>analysis context attached</b></span></div></div>
               <div className="assistant-panel surface">
                 <div className="assistant-panel-head"><div><span className="live-dot" /> GHOST / ARCHITECTURE COPILOT</div><span>{selectedNode ? selectedNode.path : "repository overview"}</span></div>
