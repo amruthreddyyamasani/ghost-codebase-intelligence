@@ -6,47 +6,44 @@ import * as THREE from "three";
 type SignalFieldProps = { progress: number };
 
 function SignalScene({ progress }: SignalFieldProps) {
-  const group = useRef<THREE.Group>(null);
-  const ring = useRef<THREE.Mesh>(null);
+  const system = useRef<THREE.Group>(null);
+  const core = useRef<THREE.Mesh>(null);
 
   useFrame(({ clock }, delta) => {
     const time = clock.getElapsedTime();
-    if (group.current) {
-      group.current.rotation.y += delta * 0.08;
-      group.current.rotation.x = THREE.MathUtils.lerp(group.current.rotation.x, (progress - 0.5) * 0.42, 0.04);
-      group.current.position.y = Math.sin(time * 0.45) * 0.08 + (progress - 0.5) * 0.35;
+    if (system.current) {
+      system.current.rotation.y += delta * 0.07;
+      system.current.rotation.x = THREE.MathUtils.lerp(system.current.rotation.x, (progress - 0.5) * 0.45, 0.045);
+      system.current.position.y = Math.sin(time * 0.42) * 0.08 + (progress - 0.5) * 0.28;
     }
-    if (ring.current) {
-      ring.current.rotation.z = time * 0.16 + progress * Math.PI;
-      ring.current.scale.setScalar(1 + Math.sin(time * 0.7) * 0.04 + progress * 0.12);
-    }
+    if (core.current) core.current.scale.setScalar(1 + Math.sin(time * 0.75) * 0.035 + progress * 0.08);
   });
 
   return (
     <>
       <color attach="background" args={["#070b0a"]} />
       <fog attach="fog" args={["#070b0a", 4, 13]} />
-      <ambientLight intensity={0.35} />
-      <pointLight position={[2, 2, 3]} color="#c7f36b" intensity={2.5} distance={7} />
-      <group ref={group} rotation={[0.15, -0.2, 0]}>
-        <mesh ref={ring} rotation={[Math.PI / 2, 0, 0]}>
-          <torusGeometry args={[1.45, 0.012, 12, 96]} />
-          <meshBasicMaterial color="#c7f36b" transparent opacity={0.72} />
+      <ambientLight intensity={0.32} />
+      <pointLight position={[2, 2, 3]} color="#c7f36b" intensity={2.2} distance={7} />
+      <group ref={system} rotation={[0.12, -0.2, 0]}>
+        <mesh rotation={[Math.PI / 2, 0, 0]}>
+          <torusGeometry args={[1.52, 0.012, 12, 96]} />
+          <meshBasicMaterial color="#c7f36b" transparent opacity={0.74} />
         </mesh>
         <mesh rotation={[Math.PI / 2, 0, 0]}>
-          <torusGeometry args={[2.15, 0.008, 10, 96]} />
-          <meshBasicMaterial color="#86b6ff" transparent opacity={0.35} />
+          <torusGeometry args={[2.2, 0.008, 10, 96]} />
+          <meshBasicMaterial color="#86b6ff" transparent opacity={0.32} />
         </mesh>
-        <mesh>
-          <icosahedronGeometry args={[0.62, 2]} />
-          <meshStandardMaterial color="#c7f36b" emissive="#5a7d2b" emissiveIntensity={1.8} wireframe transparent opacity={0.9} />
+        <mesh ref={core}>
+          <icosahedronGeometry args={[0.68, 2]} />
+          <meshStandardMaterial color="#c7f36b" emissive="#5a7d2b" emissiveIntensity={1.7} wireframe transparent opacity={0.9} />
         </mesh>
-        <mesh scale={0.32}>
+        <mesh scale={0.34}>
           <icosahedronGeometry args={[1, 1]} />
           <meshBasicMaterial color="#efffd4" />
         </mesh>
       </group>
-      <Sparkles count={90} scale={[7, 5, 5]} size={1.7} speed={0.18} color="#c7f36b" opacity={0.55} />
+      <Sparkles count={84} scale={[7, 5, 5]} size={1.65} speed={0.16} color="#c7f36b" opacity={0.5} />
       <OrbitControls enablePan={false} enableZoom={false} autoRotate={false} />
     </>
   );

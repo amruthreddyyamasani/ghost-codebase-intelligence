@@ -9,6 +9,7 @@ type ArchitectureGraphProps = {
   edges: AnalysisEdge[];
   selectedPath?: string;
   onSelect: (path: string) => void;
+  scrollProgress?: number;
 };
 
 type GraphNodeProps = {
@@ -74,7 +75,8 @@ function GraphNode({ node, position, selected, onSelect }: GraphNodeProps) {
   );
 }
 
-function GraphScene({ nodes, edges, selectedPath, onSelect }: ArchitectureGraphProps) {
+function GraphScene({ nodes, edges, selectedPath, onSelect, scrollProgress = 0 }: ArchitectureGraphProps) {
+  const topology = useRef<THREE.Group>(null);
   const positions = useMemo(() => {
     const layers = Array.from(new Set(nodes.map(node => node.layer)));
     const buckets = new Map<string, AnalysisNode[]>();
@@ -96,10 +98,18 @@ function GraphScene({ nodes, edges, selectedPath, onSelect }: ArchitectureGraphP
   const visiblePaths = new Set(nodes.map(node => node.path));
   const visibleEdges = edges.filter(edge => visiblePaths.has(edge.source) && visiblePaths.has(edge.target));
 
+  useFrame(({ clock }, delta) => {
+    if (!topology.current) return;
+    topology.current.rotation.y += delta * 0.035;
+    topology.current.rotation.x = THREE.MathUtils.lerp(topology.current.rotation.x, (scrollProgress - 0.5) * 0.22, 0.04);
+    topology.current.position.y = Math.sin(clock.getElapsedTime() * 0.3) * 0.04;
+  });
+
   return (
     <>
       <ambientLight intensity={0.5} />
-      <group rotation={[0, -0.15, 0]}>
+      <gridHelper args={[18, 18, "#26351f", "#121b14"]} position={[0, -3.2, 0]} />
+      <group ref={topology} rotation={[0, -0.15, 0]}>
         {visibleEdges.map((edge, index) => {
           const from = positions.get(edge.source);
           const to = positions.get(edge.target);
